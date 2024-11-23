@@ -1,5 +1,4 @@
 const FEEDBACK_API = "/api/feedback";
-
 const validationSchema = [
 	{
 		name: "name",
@@ -18,6 +17,7 @@ const validationSchema = [
 		func: validPrice,
 	},
 ];
+const pageLoadTime = Date.now();
 
 window.onload = app;
 
@@ -31,16 +31,40 @@ function addListeners() {
 	form.addEventListener("submit", submitFeedback);
 }
 
-function submitFeedback(e) {
+async function submitFeedback(e) {
 	e.preventDefault();
 
 	const form = e.target;
 	const formData = new FormData(form);
 
-	validateForm(form, validationSchema);
+	if (!validateForm(form, validationSchema)) return;
 
+	const body = Object.fromEntries(formData);
+	body.was30sec = was30Sec();
+
+
+	try {
+		const response = await fetchJson(FEEDBACK_API, "POST", body);
+		const msg = await response.json();
+
+		if (!response.ok) {
+			serverErrorHandler(msg.error);
+			return;
+		}
+
+		successHandler(JSON.parse(msg)._embedded.leads[0].id);
+	} catch (e) {
+		serverErrorHandler(e);
+	}
 }
 
+function serverErrorHandler(msg) {
+	alert(`Произошла ошибка ${msg}`);
+}
+
+function successHandler(msg) {
+	alert(`Успех: id ${msg}`);
+}
 
 function validateForm(form, schema) {
 	let isFormValid = true;
@@ -50,37 +74,38 @@ function validateForm(form, schema) {
 		const help = input.parentNode.parentNode.querySelector("p");
 		const [isValid, message] = instruction.func(input.value.trim());
 
-		isFormValid &&= false;
-        if(help) help.textContent = message;
+		isFormValid &&= isValid;
+		if (help) help.textContent = message;
 	});
 
 	return isFormValid;
 }
 
 function validName(name) {
-    if(name != "") return [true, ""];
+	if (name != "") return [true, ""];
 
-    return [false, "Имя обязательное поле"];
+	return [false, "Имя обязательное поле"];
 }
 
 function validEmail(email) {
-    const reg = /^\S+@\S+\.\S+$/
-    if(reg.test(email)) return [true, ""];
+	const reg = /^\S+@\S+\.\S+$/;
+	if (reg.test(email)) return [true, ""];
 
-    return [false, "Введите корректный email"]
+	return [false, "Введите корректный email"];
 }
 
 function validPhone(phone) {
-    const reg = /^(\+7|8)(\s|-)?(\()?[0-9]{3}(\))?(\s|-)?([0-9]{3})(\s|-)?([0-9]{2})(\s|-)?([0-9]{2})$/
-    if(reg.test(phone)) return [true, ""];
+	const reg =
+		/^(\+7|8)(\s|-)?(\()?[0-9]{3}(\))?(\s|-)?([0-9]{3})(\s|-)?([0-9]{2})(\s|-)?([0-9]{2})$/;
+	if (reg.test(phone)) return [true, ""];
 
-    return [false, "Введите корректный номер телефона"]
+	return [false, "Введите корректный номер телефона"];
 }
 
 function validPrice(price) {
-    if(!isNaN(+price)) return [true, ""];
+	if (price != "" && !isNaN(+price)) return [true, ""];
 
-    return [false, "Введите число"];
+	return [false, "Введите число"];
 }
 
 function resetForm(form) {
@@ -97,4 +122,9 @@ async function fetchJson(path, method, body = {}) {
 			"Content-Type": "application/json",
 		},
 	});
+}
+
+function was30Sec() {
+	const timeSpent = (Date.now() - pageLoadTime) / 1000;
+	return timeSpent >= 30;
 }
